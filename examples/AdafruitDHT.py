@@ -7,18 +7,6 @@
 # in the Software without restriction, including without limitation the rights
 # to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
 # copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 import sys
 
 import Adafruit_DHT
@@ -29,17 +17,39 @@ sensor_args = { '11': Adafruit_DHT.DHT11,
                 '22': Adafruit_DHT.DHT22,
                 '2302': Adafruit_DHT.AM2302 }
 if len(sys.argv) == 3 and sys.argv[1] in sensor_args:
-	sensor = sensor_args[sys.argv[1]]
-	pin = sys.argv[2]
+    sensor = sensor_args[sys.argv[1]]
+    pin = sys.argv[2]
 else:
-	print('Usage: sudo ./Adafruit_DHT.py [11|22|2302] <GPIO pin number>')
-	print('Example: sudo ./Adafruit_DHT.py 2302 4 - Read from an AM2302 connected to GPIO pin #4')
-	sys.exit(1)
+    print('Usage: sudo ./Adafruit_DHT.py [11|22|2302] <GPIO pin number>')
+    print('Example: sudo ./Adafruit_DHT.py 2302 4 - Read from an AM2302 connected to GPIO pin #4')
+    sys.exit(1)
 
 # Try to grab a sensor reading.  Use the read_retry method which will retry up
 # to 15 times to get a sensor reading (waiting 2 seconds between each retry).
-humidity, temperature = Adafruit_DHT.read_retry(sensor, pin)
 import time
+import sys
+import httplib, urllib
+import json
+deviceId = "DdVlnb0v"
+deviceKey = "0DU9Onnqvj0B0lqT"
+def post_to_mcs(payload): 
+	headers = {"Content-type": "application/json", "deviceKey": deviceKey} 
+	not_connected = 1 
+	while (not_connected):
+		try:
+			conn = httplib.HTTPConnection("api.mediatek.com:80")
+			conn.connect() 
+			not_connected = 0 
+		except (httplib.HTTPException, socket.error) as ex: 
+			print( "Error: %s" % ex)
+			time.sleep(10)
+			 # sleep 10 seconds 
+	conn.request("POST", "/mcs/v2/devices/" + deviceId + "/datapoints", json.dumps(payload), headers) 
+	response = conn.getresponse() 
+	print( response.status, response.reason, json.dumps(payload), time.strftime("%c")) 
+	data = response.read() 
+	conn.close() 
+
 while 1:
 	humidity, temperature = Adafruit_DHT.read_retry(sensor, pin)
 
@@ -51,7 +61,11 @@ while 1:
 # guarantee the timing of calls to read the sensor).
 # If this happens try again!
 	if humidity is not None and temperature is not None:
-		print('Temp={0:0.1f}*  Humidity={1:0.1f}%'.format(temperature, humidity))
+    		print('Temp={0:0.1f}*  Humidity={1:0.1f}%'.format(temperature, humidity))
+		payload = {"datapoints":[{"dataChnId":"Humidity","values":{"value":humidity}},
+			  {"dataChnId":"Temperature","values":{"value":temperature}}]} 
+		post_to_mcs(payload)
+		time.sleep(10)
 	else:
 		print('Failed to get reading. Try again!')
-		sys.exit(1)
+    		sys.exit(1)
